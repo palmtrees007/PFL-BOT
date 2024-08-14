@@ -18,6 +18,7 @@ async def main() -> None:
     dp.include_routers(reg_router, log_router)
 
     await dp.start_polling(bot)
+    print('i love hot bebra')
 
 
 if __name__ == '__main__':
