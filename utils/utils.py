@@ -21,7 +21,7 @@ async def send_email(getter, number, path=None):
     env.read_env(path)
 
 
-    email_sender = 'pavelukolov007@mail.ru'
+    email_sender = env('MY_EMAIL')
 
     smtp_server = smtplib.SMTP('smtp.mail.ru', 587) #465 587 993
     smtp_server.starttls()
