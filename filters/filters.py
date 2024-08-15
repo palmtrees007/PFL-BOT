@@ -12,8 +12,6 @@ class IsValidPasswordFilter(BaseFilter):
             return {'warning': 'len'}
         elif not any(map(lambda x: x.isupper(), text)):
             return {'warning': 'up'}
-        elif not any(map(lambda x: x in ('?', '!', '#', '_'), text)):
-            return {'warning': 'special'}
         elif not any(map(lambda x: x.isdigit(), text)):
             return {'warning': 'no_nums'}
         elif not all(map(lambda x: x.isalpha() and (ord(x) in range(ord('a'), ord('z')+1) or ord(x) in range(ord('A'), ord('Z')+1)), filter(lambda x: x.isalpha(), text))):

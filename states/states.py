@@ -7,9 +7,18 @@ class FSMRegForm(StatesGroup):
     password = State()
     repeat_password = State()
     verif_code = State()
+    verif_code_tr = State()
+    between = State()
+    tries = State()
 
 
 class FSMLogFrom(StatesGroup):
     email = State()
     verif_code = State()
     password = State()
+
+
+class FSMMenu(StatesGroup):
+    in_menu = State()
+    search_game = State()
+    in_profile = State()

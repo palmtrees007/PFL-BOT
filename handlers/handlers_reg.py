@@ -2,15 +2,15 @@
 
 from aiogram import Router, F
 from aiogram.filters import CommandStart, Command, StateFilter
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state
 
 from lexicon.lexicon import LEXICON
-from keyboards.inline_keyboards import build_keyboard, login_inline_btn, reg_inline_btn, repeat_code_btn
+from keyboards.inline_keyboards import build_keyboard, login_inline_btn, reg_inline_btn, repeat_code_btn, begin_btn
 from filters.filters import IsValidPasswordFilter
 from states.states import FSMRegForm, FSMLogFrom
-from utils.utils import check_email
+from utils.utils import check_email, send_email
 
 from random import randint
 
@@ -48,26 +48,36 @@ async def process_nickname_sent(message: Message, state: FSMContext) -> None:
         await state.update_data(email=message.text)
         
         await state.set_state(FSMRegForm.verif_code)
-        await state.update_data(verif_code='1000')
-        #Здесь на почту присылается случайный код подтверждения
-        
-        await message.answer(text=LEXICON['confirmation_code_sent'], reply_markup=build_keyboard(repeat_code_btn))
+
+        code = randint(100000, 999999)
+        await state.update_data(verif_code_tr=code, tries='3')
+        await message.answer(text=LEXICON['confirmation_code_sent']) #, reply_markup=build_keyboard(repeat_code_btn))
+        await send_email(message.text, code)
+    else:
+        await message.answer(text='Неверная почта')
 
     
 @reg_router.callback_query(F.data == 'repeat_code_pressed', StateFilter(FSMRegForm.verif_code))
 async def process_repeat_code_btn_pressed(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    
     await callback.answer(text='Код выслан повторно')
     
-    await state.update_data(verif_code='1100')
-    #Снова высылается новый код подтверждения
-
+    code = randint(100000, 999999)
+    await state.update_data(verif_code_tr=code)
+    await send_email(data['email'], code)
+    
 
 @reg_router.message(StateFilter(FSMRegForm.verif_code))
 async def process_code_sent(message: Message, state: FSMContext):
     code = message.text
-    true_code = await state.get_data()
-    if code != true_code['verif_code']:
-        await message.answer(text=LEXICON['false_code'], reply_markup=build_keyboard(repeat_code_btn))
+    data = await state.get_data()
+    if str(code) != str(data['verif_code_tr']):
+        if int(data['tries']) > 0:
+            await state.update_data(tries=str(int(data['tries'])-1))
+            await message.answer(text=f'Неверный код. Осталось попыток: {data["tries"]}')#, reply_markup=build_keyboard(repeat_code_btn))
+        else:
+            await message.answer(text='Попытки кончились. Чтобы пройти регистрацию повторно, введите /cancel')
     else:
         await message.answer(text=LEXICON['email_confirmed'])
         await message.answer(text=LEXICON['requests_nick'])
@@ -87,8 +97,6 @@ async def process_password_sent(message: Message, state: FSMContext, warning: st
         await message.answer(text=LEXICON['not_enough_len'])
     elif warning == 'up':
         await message.answer(text=LEXICON['not_enough_up'])
-    elif warning == 'special':
-        await message.answer(text=LEXICON['not_special'])
     elif warning == 'no_nums':
         await message.answer(text=LEXICON['no_nums'])
     elif warning == 'no_english':
@@ -103,14 +111,13 @@ async def process_password_sent(message: Message, state: FSMContext, warning: st
 async def process_repeat_password_sent(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     if message.text == data['password']:
-        await message.answer(text=LEXICON['password_confirmed'])
+        await message.answer(text=LEXICON['password_confirmed'], reply_markup=build_keyboard(begin_btn))
 
         #Тут надо добавить запись полученных значений в бд
 
 
-        await state.clear()
+        await state.set_state(FSMRegForm.between)
 
     else:
         await message.answer(text=LEXICON['password_not_confired'])
-        await process_password_sent(message, state)
 
