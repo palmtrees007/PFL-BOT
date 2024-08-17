@@ -16,6 +16,8 @@ class IsValidPasswordFilter(BaseFilter):
             return {'warning': 'no_nums'}
         elif not all(map(lambda x: x.isalpha() and (ord(x) in range(ord('a'), ord('z')+1) or ord(x) in range(ord('A'), ord('Z')+1)), filter(lambda x: x.isalpha(), text))):
             return {'warning': 'no_english'}
+        elif len(text) > 32:
+            return {'warning': 'to_long'}
         else:
             return {'warning': None}
         

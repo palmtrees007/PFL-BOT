@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from environs import Env
+from db.db_comm import db_connect
 
 
 @dataclass
@@ -15,4 +16,9 @@ class Config:
 def load_config(path=None):
     env = Env()
     env.read_env(path)
-    return Config(tg_bot=TgBot(bot_token=env('BOT_TOKEN')))
+    connection = db_connect(host=env('HOST'),
+               port=env('PORT'),
+               user=env('USER'),
+               password=env('PASSWORD_DB'),
+               database=env('DATABASE'))
+    return Config(tg_bot=TgBot(bot_token=env('BOT_TOKEN'))), connection

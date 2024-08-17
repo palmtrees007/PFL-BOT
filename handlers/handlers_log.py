@@ -13,10 +13,7 @@ log_router = Router()
 
 @log_router.callback_query(F.data == 'log_callback')
 async def process_log_btn_pressed(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer(text=LEXICON['requests_id'])
-    await callback.message.answer(text='Чтобы отменить вход введить /cancel')
-    await callback.message.delete()
-    await state.set_state(FSMLogFrom.password)
+    pass
 
 
 @log_router.message(StateFilter(FSMLogFrom.password))

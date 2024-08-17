@@ -5,12 +5,14 @@ from aiogram.filters import CommandStart, Command, StateFilter
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state
+from pymysql.connections import Connection
 
 from lexicon.lexicon import LEXICON
 from keyboards.inline_keyboards import build_keyboard, login_inline_btn, reg_inline_btn, repeat_code_btn, begin_btn
 from filters.filters import IsValidPasswordFilter
 from states.states import FSMRegForm, FSMLogFrom
 from utils.utils import check_email, send_email
+from db.db_comm import check
 
 from random import randint
 
@@ -23,9 +25,8 @@ reg_router = Router()
 async def process_start_command(message: Message) -> None:
     await message.answer(text=LEXICON['greeting'],
                          reply_markup=build_keyboard(login_inline_btn, reg_inline_btn))
+
     
-
-
 @reg_router.callback_query(F.data == 'reg_callback')
 async def process_reg_btn_pressed(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.message.delete()
@@ -43,16 +44,25 @@ async def process_cancel_command(message: Message, state: FSMContext):
 
 
 @reg_router.message(FSMRegForm.email)
-async def process_nickname_sent(message: Message, state: FSMContext) -> None:
+async def process_email_sent(message: Message, state: FSMContext, connection: Connection) -> None:
     if check_email(message.text):
-        await state.update_data(email=message.text)
+        ch = check(message.text, connection)
+        if ch == True:
+            if len(message.text) <= 50:
+                await state.update_data(email=message.text)
         
-        await state.set_state(FSMRegForm.verif_code)
+                await state.set_state(FSMRegForm.verif_code)
 
-        code = randint(100000, 999999)
-        await state.update_data(verif_code_tr=code, tries='3')
-        await message.answer(text=LEXICON['confirmation_code_sent']) #, reply_markup=build_keyboard(repeat_code_btn))
-        await send_email(message.text, code)
+                code = randint(100000, 999999)
+                await state.update_data(verif_code_tr=code, tries='3')
+                await message.answer(text=LEXICON['confirmation_code_sent']) #, reply_markup=build_keyboard(repeat_code_btn))
+                await send_email(message.text, code)
+            else:
+                await message.answer(text='Слишком длинная почта')
+        elif ch == False:
+            await message.answer(text='Уже есть аккаунт, зарегистрированный на эту почту')
+        elif ch is None:
+            await message.answer(text='хз')
     else:
         await message.answer(text='Неверная почта')
 
@@ -86,9 +96,12 @@ async def process_code_sent(message: Message, state: FSMContext):
 
 @reg_router.message(StateFilter(FSMRegForm.nickname))
 async def process_nick_sent(message: Message, state: FSMContext):
-    await state.update_data(nickname=message.text)
-    await message.answer(text=LEXICON['requests_new_password'])
-    await state.set_state(FSMRegForm.password)
+    if len(message.text) <= 32:
+        await state.update_data(nickname=message.text)
+        await message.answer(text=LEXICON['requests_new_password'])
+        await state.set_state(FSMRegForm.password)
+    else:
+        await message.answer(text=LEXICON['to_long_nick'])
 
 
 @reg_router.message(IsValidPasswordFilter(F.text), StateFilter(FSMRegForm.password))
@@ -101,6 +114,8 @@ async def process_password_sent(message: Message, state: FSMContext, warning: st
         await message.answer(text=LEXICON['no_nums'])
     elif warning == 'no_english':
         await message.answer(text=LEXICON['no_english'])
+    elif warning == 'to_long':
+        await message.answer(text=LEXICON['to_long_pass'])
     else:
         await message.answer(text=LEXICON['valid_password'])
         await state.update_data(password=message.text)

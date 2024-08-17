@@ -11,12 +11,14 @@ from aiogram.enums import ParseMode
 
 async def main() -> None:
     
-    config = load_config()
+    config, connection = load_config()
 
     bot = Bot(config.tg_bot.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
     dp.include_routers(reg_router, log_router, main_router)
+
+    dp.workflow_data.update({'connection': connection})
 
     await dp.start_polling(bot)
 
