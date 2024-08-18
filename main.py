@@ -25,6 +25,7 @@ async def main() -> None:
                user=config.data_base.user,
                password=config.data_base.password_db,
                database=config.data_base.database)
+    max_lobby = 0
 
     dp.workflow_data.update({'pool': pool})
 

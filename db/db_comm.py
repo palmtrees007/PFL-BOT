@@ -63,3 +63,7 @@ async def add_user(email, nickname, pswrd, pool: aiomysql.Pool):
         await conn.commit()
     except Exception as e:
         raise e
+    
+
+async def create_lobby(pool: aiomysql.Pool):
+    pass
