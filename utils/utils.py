@@ -6,7 +6,7 @@ from email_validator import validate_email, EmailNotValidError
 from environs import Env
 
 
-def check_email(email: str) -> bool:
+async def check_email(email: str) -> bool:
     try:
         v = validate_email(email)
         email = v['email']

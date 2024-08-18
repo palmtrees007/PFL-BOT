@@ -5,14 +5,14 @@ from aiogram.filters import CommandStart, Command, StateFilter
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state
-from pymysql.connections import Connection
+import aiomysql
 
 from lexicon.lexicon import LEXICON
 from keyboards.inline_keyboards import build_keyboard, login_inline_btn, reg_inline_btn, repeat_code_btn, begin_btn
 from filters.filters import IsValidPasswordFilter
-from states.states import FSMRegForm, FSMLogFrom
+from states.states import FSMRegForm, FSMLogForm
 from utils.utils import check_email, send_email
-from db.db_comm import check
+from db.db_comm import check, add_user
 
 from random import randint
 
@@ -36,17 +36,17 @@ async def process_reg_btn_pressed(callback: CallbackQuery, state: FSMContext) ->
 
 
 @reg_router.message(Command(commands='cancel'), StateFilter(FSMRegForm.nickname,  FSMRegForm.password, FSMRegForm.email, FSMRegForm.verif_code,
-                                                            FSMLogFrom.password, FSMLogFrom.email, FSMRegForm.repeat_password,
-                                                            FSMLogFrom.verif_code ))
+                                                            FSMLogForm.password, FSMLogForm.email, FSMRegForm.repeat_password,
+                                                            FSMLogForm.verif_code))
 async def process_cancel_command(message: Message, state: FSMContext):
     await state.clear()
     await process_start_command(message)
 
 
 @reg_router.message(FSMRegForm.email)
-async def process_email_sent(message: Message, state: FSMContext, connection: Connection) -> None:
-    if check_email(message.text):
-        ch = check(message.text, connection)
+async def process_email_sent(message: Message, state: FSMContext, pool: aiomysql.Pool) -> None:
+    if await check_email(message.text):
+        ch = await check(message.text, pool)
         if ch == True:
             if len(message.text) <= 50:
                 await state.update_data(email=message.text)
@@ -54,37 +54,35 @@ async def process_email_sent(message: Message, state: FSMContext, connection: Co
                 await state.set_state(FSMRegForm.verif_code)
 
                 code = randint(100000, 999999)
-                await state.update_data(verif_code_tr=code, tries='3')
+                await state.update_data(verif_code=code, tries=3)
                 await message.answer(text=LEXICON['confirmation_code_sent']) #, reply_markup=build_keyboard(repeat_code_btn))
                 await send_email(message.text, code)
             else:
                 await message.answer(text='Слишком длинная почта')
-        elif ch == False:
+        else:
             await message.answer(text='Уже есть аккаунт, зарегистрированный на эту почту')
-        elif ch is None:
-            await message.answer(text='хз')
     else:
         await message.answer(text='Неверная почта')
 
     
-@reg_router.callback_query(F.data == 'repeat_code_pressed', StateFilter(FSMRegForm.verif_code))
-async def process_repeat_code_btn_pressed(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    
-    await callback.answer(text='Код выслан повторно')
-    
-    code = randint(100000, 999999)
-    await state.update_data(verif_code_tr=code)
-    await send_email(data['email'], code)
+#@reg_router.callback_query(F.data == 'repeat_code_pressed', StateFilter(FSMRegForm.verif_code))
+#async def process_repeat_code_btn_pressed(callback: CallbackQuery, state: FSMContext):
+#    data = await state.get_data()
+#    
+#    await callback.answer(text='Код выслан повторно')
+#    
+#    code = randint(100000, 999999)
+#    await state.update_data(verif_code_tr=code)
+#    await send_email(data['email'], code)
     
 
 @reg_router.message(StateFilter(FSMRegForm.verif_code))
 async def process_code_sent(message: Message, state: FSMContext):
     code = message.text
     data = await state.get_data()
-    if str(code) != str(data['verif_code_tr']):
+    if code != str(data['verif_code']):
         if int(data['tries']) > 0:
-            await state.update_data(tries=str(int(data['tries'])-1))
+            await state.update_data(tries=data['tries']-1)
             await message.answer(text=f'Неверный код. Осталось попыток: {data["tries"]}')#, reply_markup=build_keyboard(repeat_code_btn))
         else:
             await message.answer(text='Попытки кончились. Чтобы пройти регистрацию повторно, введите /cancel')
@@ -123,14 +121,14 @@ async def process_password_sent(message: Message, state: FSMContext, warning: st
 
 
 @reg_router.message(StateFilter(FSMRegForm.repeat_password))
-async def process_repeat_password_sent(message: Message, state: FSMContext) -> None:
+async def process_repeat_password_sent(message: Message, state: FSMContext, pool: aiomysql.Pool) -> None:
     data = await state.get_data()
     if message.text == data['password']:
         await message.answer(text=LEXICON['password_confirmed'], reply_markup=build_keyboard(begin_btn))
 
-        #Тут надо добавить запись полученных значений в бд
-
-
+        #Запись полученных значений в бд
+        await add_user(email=data['email'], nickname=data['nickname'], pswrd=data['password'], pool=pool)
+        
         await state.set_state(FSMRegForm.between)
 
     else:

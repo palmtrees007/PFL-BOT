@@ -12,10 +12,12 @@ class FSMRegForm(StatesGroup):
     tries = State()
 
 
-class FSMLogFrom(StatesGroup):
+class FSMLogForm(StatesGroup):
     email = State()
     verif_code = State()
     password = State()
+    tries = State()
+    between = State()
 
 
 class FSMMenu(StatesGroup):
